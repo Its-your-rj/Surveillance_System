@@ -18,6 +18,6 @@ def send_notification(url):
     formatted_now = now.strftime("%d/%m/%y %H:%M:%S")
     client.messages.create(
         body=f"Person motion detected @{formatted_now}: {url}",
-        from_=SENDER,  # Your Twilio phone number
-        to=RECEIVER     # Recipient phone number
+        from_=SENDER,
+        to=RECEIVER
     )
