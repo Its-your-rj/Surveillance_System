@@ -1,6 +1,6 @@
 Flask
 requests
-google-cloud-storage
+azure-storage-blob
 opencv-python
 numpy
 imageio-ffmpeg
