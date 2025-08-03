@@ -1,6 +1,6 @@
 # Surveillance System with Motion Detection
 
-This repository contains a Python-based surveillance system that uses computer vision and machine learning to detect human motion, record video, upload it to Azure Blob Storage, and send notifications via Twilio. The system is built with a Flask backend to provide a RESTful API for controlling and monitoring the surveillance system. The project was last updated on **August 3, 2025, at 09:35 AM IST**.
+This repository contains a Python-based surveillance system that uses computer vision and machine learning to detect human motion, record video, upload it to Azure Blob Storage, and send notifications via Twilio. The system is built with a Flask backend to provide a RESTful API for controlling and monitoring the surveillance system. 
 
 ## Table of Contents
 1. [Project Overview](#project-overview)
