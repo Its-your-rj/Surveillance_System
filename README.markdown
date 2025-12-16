@@ -42,6 +42,9 @@ The system follows a modular architecture:
 
 The system uses threading to handle video processing and uploads asynchronously, ensuring non-blocking operation.
 
+<img width="538" height="278" alt="image" src="https://github.com/user-attachments/assets/9f9d4556-ae4c-43be-b44c-bc6eed087365" />
+
+
 ## Machine Learning Pipeline
 
 ### Overview
