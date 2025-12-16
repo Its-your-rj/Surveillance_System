@@ -44,6 +44,192 @@ The system uses threading to handle video processing and uploads asynchronously,
 
 <img width="538" height="278" alt="image" src="https://github.com/user-attachments/assets/9f9d4556-ae4c-43be-b44c-bc6eed087365" />
 
+## 🧠 System Architecture Deep Dive
+
+This section explains the internal design of the system, focusing on **component responsibilities, concurrency decisions, latency handling, and system-design principles**. The goal is to demonstrate not just *what* the system does, but *why* it is designed this way.
+
+---
+
+## 1. Component Breakdown
+
+### A. Frontend – Control Plane
+
+**Technology:**  
+- HTML / CSS / JavaScript  
+- Served using **Flask + Jinja2 templates**
+
+**Role:**  
+The frontend acts as a **Command Center**. It does **not** process or analyze video frames. Instead, it sends control commands to the backend via REST APIs.
+
+**Key Responsibility:**  
+- Send user commands such as **Arm / Disarm System**
+- Display live video stream
+- Remain lightweight and responsive
+
+**Stateless Design (Interview Concept):**  
+The frontend is largely **stateless**.  
+For example:
+- Clicking **“Arm System”** triggers `POST /toggle_arming`
+- The backend updates its internal state (`self.armed = True`)
+- The frontend does not maintain long-lived video or processing state
+
+This ensures scalability and simplifies UI logic.
+
+---
+
+### B. Backend – Data Plane
+
+The backend performs **all heavy computation** and runs two major components **in parallel**:
+
+#### 1️⃣ API Server (Main Thread)
+- Handles REST requests (Arm / Disarm)
+- Streams video using `GET /video_feed`
+- Manages system state
+
+#### 2️⃣ Video Processing Pipeline (Daemon Thread)
+- Implemented in `camera.py`
+- Continuously captures frames
+- Runs inference using **MobileNet-SSD**
+- Detects humans and triggers recordings
+
+#### Why Threading?
+
+Running video inference on the main Flask thread would **block the UI** and freeze the web interface.
+
+By using a **Daemon Thread**:
+- UI remains responsive
+- Video processing runs independently
+- Heavy computation is fully decoupled from user interaction
+
+This is a **critical architectural decision**.
+
+---
+
+## 2. Storage & External Services
+
+### Hybrid Storage Strategy
+
+| Storage Tier | Purpose | Reason |
+|-------------|--------|--------|
+| **Hot Storage (RAM)** | Frame-by-frame processing | Ultra-low latency |
+| **Warm Storage (Local Disk)** | Temporary `.mp4` recordings | Avoid network latency during capture |
+| **Cold Storage (Azure Blob)** | Long-term storage | Scalability & durability |
+
+**Design Rationale:**  
+Uploading frames directly to the cloud would introduce network delays and dropped frames.  
+Instead:
+1. Record locally first
+2. Upload only after recording stops
+3. Preserve reliability even if cloud services fail
+
+---
+
+## 3. Latency Handling & Performance Architecture
+
+When asked *“How do you handle latency?”*, this project uses **three concrete optimizations**:
+
+---
+
+### 1️⃣ Model Architecture – MobileNet SSD
+
+**Concept:** Compute Efficiency
+
+- Uses **Depthwise Separable Convolutions**
+- Reduces computational cost compared to standard convolutions
+- Achieves ~**20 FPS on CPU**
+- Keeps inference latency **under ~50ms per frame**
+
+This makes real-time detection feasible without a GPU.
+
+---
+
+### 2️⃣ Asynchronous I/O – Non-Blocking Operations
+
+**Concept:** Concurrency & Decoupling
+
+- Video recording and cloud uploads are **fully asynchronous**
+- Once a person leaves the frame:
+  - Recording stops
+  - File path is passed to `storage.py`
+  - Azure upload happens in the background
+
+The camera pipeline **never pauses**, ensuring no blind spots.
+
+---
+
+### 3️⃣ Efficient Preprocessing – Data Reduction
+
+**Concept:** Throughput Optimization
+
+- Frames are resized to **300 × 300**
+- Reduces tensor size drastically compared to 1080p frames
+- Improves inference speed without sacrificing detection accuracy
+
+---
+
+## 4. System Design Concepts Mapped to This Project
+
+| Concept | Application |
+|------|------------|
+| **Monolithic Architecture** | `main.py`, `camera.py`, `storage.py` run in one process (modular monolith) |
+| **Event-Driven Architecture** | Detection events trigger recordings and uploads |
+| **Vertical Scaling** | Higher FPS achievable via better CPU / GPU |
+| **Fail-Over & Resilience** | Local disk storage protects data if Azure is unavailable |
+| **RESTful API Design** | `GET /video_feed`, `POST /toggle_arming` |
+
+**Scalability Note:**  
+Currently optimized for a **single camera**.  
+To scale:
+- Split inference into a separate microservice
+- Add message queues (Kafka / RabbitMQ)
+
+---
+
+## 5. End-to-End Logic Flow
+
+1. **Ingestion**  
+   `cv2.VideoCapture` captures a raw frame
+
+2. **Preprocessing**  
+   Frame resized to `300 × 300` and normalized
+
+3. **Inference**  
+   MobileNet backbone extracts features  
+   SSD head generates bounding boxes
+
+4. **Filtering Logic**
+   - Confidence < 0.5 → Discard
+   - Confidence ≥ 0.5 & ClassID = Person → Continue
+
+5. **State Management**  
+   System enters **Recording State**
+
+6. **Recording**  
+   Frames written to a local `.mp4` file
+
+7. **Completion**  
+   Person leaves frame → Video writer releases file
+
+8. **Async Handoff**  
+   File path passed to Storage Module
+
+9. **Egress**
+   - Upload to Azure Blob Storage
+   - On success → Trigger Twilio SMS alert
+
+---
+
+## 6. Why This Architecture Matters
+
+This design demonstrates:
+- Strong understanding of **ML + Systems**
+- Real-time constraints and latency control
+- Production-oriented engineering decisions
+- Clear separation of concerns
+
+It shows the ability to reason beyond models — into **infrastructure, concurrency, and reliability**.
+
+
 
 ## Machine Learning Pipeline
 
